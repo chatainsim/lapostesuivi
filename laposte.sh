@@ -65,7 +65,7 @@ while read PKG; do
 			MSG=$(cat $TMP/$CODE.json|jq .message|sed 's/"//g')
 			LINK=$(cat $TMP/$CODE.json|jq .link|sed 's/"//g')
 			STATUS=$(cat $TMP/$CODE.json|jq .status|sed 's/"//g')
-			$PATHDIR/send_telegram.sh "$DATE - COMMENT - $MSG - $LINK"
+			$PATHDIR/send_telegram.sh "$DATE - $COMMENT - $MSG - $LINK"
 			#If package is set to delivred comment it in file
 			if [ "$STATUS" == "LIVRE" ]; then
 				sed -e "/$CODE/ s/^#*/#/" -i $COLIS
