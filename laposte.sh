@@ -41,7 +41,7 @@ while read PKG; do
 	curl -s -H "$URLAPI" ${URL}${CODE} > $TMP/$CODE.json
 
 	CHECK=$(cat $TMP/$CODE.json|jq .code|sed 's/"//g')
-
+	STATUS=$(cat $TMP/$CODE.json |jq .status|sed 's/"//g')
 	#If checking package number for the first time
 	if [ ! -f $DATA/$CODE.json ]; then
 		#If package number is unknown for now
@@ -54,7 +54,9 @@ while read PKG; do
 			DATE=$(cat $TMP/$CODE.json|jq .date|sed 's/"//g')
 		        MSG=$(cat $TMP/$CODE.json|jq .message|sed 's/"//g')
 	        	LINK=$(cat $TMP/$CODE.json|jq .link|sed 's/"//g')
-			$PATHDIR/send_telegram.sh "$DATE - $COMMENT - $MSG - $LINK"
+			if [ "$STATUS" != "INCONNU" ]; then
+				$PATHDIR/send_telegram.sh "$DATE - $COMMENT - $MSG - $LINK"
+			fi
 		fi
 	else
 		#checking difference between old tracking message and the last one
@@ -65,9 +67,11 @@ while read PKG; do
 			MSG=$(cat $TMP/$CODE.json|jq .message|sed 's/"//g')
 			LINK=$(cat $TMP/$CODE.json|jq .link|sed 's/"//g')
 			STATUS=$(cat $TMP/$CODE.json|jq .status|sed 's/"//g')
-			$PATHDIR/send_telegram.sh "$DATE - COMMENT - $MSG - $LINK"
+			if [ "$STATUS" != "INCONNU" ]; then
+				$PATHDIR/send_telegram.sh "$DATE - $COMMENT - $MSG - $LINK"
+			fi
 			#If package is set to delivred comment it in file
-			if [ "$STATUS" == "LIVRE" ]; then
+			if [ "$STATUS" == "LIVRE" ] || [ "$STATUS" == "DISTRIBUE" ]; then
 				sed -e "/$CODE/ s/^#*/#/" -i $COLIS
 			fi
 		fi
