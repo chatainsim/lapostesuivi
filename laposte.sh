@@ -1,7 +1,7 @@
 #!/bin/bash
 # API from LaPoste https://developer.laposte.fr/products/suivi/latest
-API=""
-
+API="API_KEY_GOES_HERE"
+IP="IP_ADDRESS_OF_YOUR_SERVER"
 #Nothng else to edit below
 
 #Define path
@@ -26,7 +26,7 @@ fi
 #API auth Header for curl
 URLAPI="X-Okapi-Key: $API"
 #API url
-URL="https://api.laposte.fr/suivi/v1/"
+URL="https://api.laposte.fr/suivi/v2/idships/"
 
 #Removing comment in list package file
 cat $COLIS|grep -v "#" > $WORK
@@ -38,7 +38,46 @@ while read PKG; do
 	COMMENT=$(echo $PKG|awk -F";" '{print $2}')
 
 	#Requesting API url
-	curl -s -H "$URLAPI" ${URL}${CODE} > $TMP/$CODE.json
+	curl -s -H "${URLAPI}" -H "X-Forwarded-For: ${IP}" ${URL}${CODE} > $TMP/$CODE.json
+	RETURN=$(cat $TMP/$CODE.json|jq .returnCode|sed 's/"//g')
+	case ${RETURN} in
+		400)
+			#echo "Numero invalide (ne respecte pas la syntaxe definie)"
+			$PATHDIR/send_telegram.sh "${CODE} : 400 - Numero invalide (ne respecte pas la syntaxe definie)"
+			exit 1
+			;;
+		401)
+			#echo "Non-autorise (absence de la cle Okapi)"
+			$PATHDIR/send_telegram.sh "401 - Non-autorise (absence de la cle Okapi)"
+			exit 1
+			;;
+		404)
+			#echo "Ressource non trouvee"
+			$PATHDIR/send_telegram.sh "404 - Ressource non trouvee"
+			exit 1
+			;;
+		500)
+			#echo "Erreur systeme (message non generee par l'application)"
+			$PATHDIR/send_telegram.sh "500 - Erreur systeme (message non generee par l'application)"
+			exit 1
+			;;
+		504)
+			#echo "Service indisponible (erreur technique sur service tiers)"
+			$PATHDIR/send_telegram.sh "504 - Service indisponible (erreur technique sur service tiers)"
+			exit 1
+			;;
+		200)
+			echo "OK"
+			;;
+		207)
+			echo "OK";
+			;;
+		*)
+			echo "Code retour ${RETURN} inconnu"
+			$PATHDIR/send_telegram.sh "${RETURN} - Code retour inconnu"
+			exit 1
+			;;
+		esac
 
 	CHECK=$(cat $TMP/$CODE.json|jq .code|sed 's/"//g')
 	STATUS=$(cat $TMP/$CODE.json |jq .status|sed 's/"//g')
