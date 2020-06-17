@@ -2,6 +2,7 @@
 # API from LaPoste https://developer.laposte.fr/products/suivi/latest
 API="API_KEY_GOES_HERE"
 IP="IP_ADDRESS_OF_YOUR_SERVER"
+DEBUG=true
 #Nothng else to edit below
 
 #Define path
@@ -38,7 +39,7 @@ while read PKG; do
 	COMMENT=$(echo $PKG|awk -F";" '{print $2}')
 
 	#Requesting API url
-	curl -s -H "${URLAPI}" -H "X-Forwarded-For: ${IP}" ${URL}${CODE} > $TMP/$CODE.json
+	curl -s -X GET -H "Accept: application/json" -H "${URLAPI}" -H "X-Forwarded-For: ${IP}" ${URL}${CODE} > $TMP/$CODE.json
 	RETURN=$(cat $TMP/$CODE.json|jq .returnCode|sed 's/"//g')
 	case ${RETURN} in
 		400)
@@ -79,21 +80,21 @@ while read PKG; do
 			;;
 		esac
 
-	CHECK=$(cat $TMP/$CODE.json|jq .code|sed 's/"//g')
+	CHECK=$(cat $TMP/$CODE.json|jq .returnCode|sed 's/"//g')
 	STATUS=$(cat $TMP/$CODE.json |jq .status|sed 's/"//g')
 	#If checking package number for the first time
 	if [ ! -f $DATA/$CODE.json ]; then
 		#If package number is unknown for now
-		if [ "$CHECK" == "RESOURCE_NOT_FOUND" ]; then
-               		MSG=$(cat $TMP/$CODE.json|jq .message|sed 's/"//g')
+		if [ "$CHECK" == "400" ]; then
+               		MSG=$(cat $TMP/$CODE.json|jq .returnMessage|sed 's/"//g')
                		$PATHDIR/send_telegram.sh "$MSG - $CODE - $COMMENT"
 			cp $TMP/$CODE.json $DATA/$CODE.json
        		else
 			cp $TMP/$CODE.json $DATA/$CODE.json
-			DATE=$(cat $TMP/$CODE.json|jq .date|sed 's/"//g')
-		        MSG=$(cat $TMP/$CODE.json|jq .message|sed 's/"//g')
-	        	LINK=$(cat $TMP/$CODE.json|jq .link|sed 's/"//g')
-			if [ "$STATUS" != "INCONNU" ]; then
+			DATE=$(cat $TMP/$CODE.json|jq .shipment.event[0].date|sed 's/"//g')
+		        MSG=$(cat $TMP/$CODE.json|jq .shipment.event[0].label|sed 's/"//g')
+	        	LINK=$(cat $TMP/$CODE.json|jq .shipment.url|sed 's/"//g')
+			if [ "$CHECK" != "400" ]; then
 				$PATHDIR/send_telegram.sh "$DATE - $COMMENT - $MSG - $LINK"
 			fi
 		fi
@@ -102,17 +103,17 @@ while read PKG; do
 		diff $TMP/$CODE.json $DATA/$CODE.json > /dev/null 2>&1
                 if [ $? -eq 1 ]; then
 			cp $TMP/$CODE.json $DATA/$CODE.json
-			DATE=$(cat $TMP/$CODE.json|jq .date|sed 's/"//g')
-			MSG=$(cat $TMP/$CODE.json|jq .message|sed 's/"//g')
-			LINK=$(cat $TMP/$CODE.json|jq .link|sed 's/"//g')
-			STATUS=$(cat $TMP/$CODE.json|jq .status|sed 's/"//g')
+			DATE=$(cat $TMP/$CODE.json|jq .shipment.event[0].date|sed 's/"//g')
+			MSG=$(cat $TMP/$CODE.json|jq .shipment.event[0].label|sed 's/"//g')
+			LINK=$(cat $TMP/$CODE.json|jq .shipment.url|sed 's/"//g')
+			STATUS=$(cat $TMP/$CODE.json|jq .shipment.event[0].code|sed 's/"//g')
 			if [ "$STATUS" != "INCONNU" ]; then
 				$PATHDIR/send_telegram.sh "$DATE - $COMMENT - $MSG - $LINK"
 			fi
 			#If package is set to delivred comment it in file
-			if [ "$STATUS" == "LIVRE" ] || [ "$STATUS" == "DISTRIBUE" ]; then
-				sed -e "/$CODE/ s/^#*/#/" -i $COLIS
+			if [ "$STATUS" == "DI1" ] || [ "$STATUS" == "DI2" ]; then
+				sed -e "/$CODE/ s/^#*/#/" -i "$COLIS"
 			fi
 		fi
 	fi
-done < $WORK
+done < "$WORK"
